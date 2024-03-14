@@ -1,0 +1,121 @@
+import pygame
+import sys
+
+# Constants
+WIDTH, HEIGHT = 800, 600
+MARBLE_RADIUS = 20
+WHITE = (255, 255, 255)
+DAMPING_FACTOR = 0.99  # Adjust this value to control the rate of momentum loss
+
+class Marble:
+    def __init__(self, x, y, color):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.radius = MARBLE_RADIUS
+        self.velocity = [0, 0]  # [x, y] velocity components
+        self.dragging = False
+
+    def draw(self, screen):
+        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
+
+    def move(self, dx, dy):
+        self.x += dx
+        self.y += dy
+
+    def handle_collision(self, other_marble):
+        # Check collision using distance between centers
+        distance = ((self.x - other_marble.x) ** 2 + (self.y - other_marble.y) ** 2) ** 0.5
+        if distance <= self.radius + other_marble.radius:
+            # Calculate normal vector
+            nx = (other_marble.x - self.x) / distance
+            ny = (other_marble.y - self.y) / distance
+            
+            # Calculate relative velocity
+            rvx = other_marble.velocity[0] - self.velocity[0]
+            rvy = other_marble.velocity[1] - self.velocity[1]
+
+            # Calculate impulse
+            impulse = 2 * (rvx * nx + rvy * ny) / (1 + 1)
+            impulsex = impulse * nx
+            impulsey = impulse * ny
+
+            # Update velocities
+            self.velocity[0] += impulsex
+            self.velocity[1] += impulsey
+            other_marble.velocity[0] -= impulsex
+            other_marble.velocity[1] -= impulsey
+
+            # Minimum separation distance
+            overlap = self.radius + other_marble.radius - distance
+            self.x -= overlap / 2 * nx
+            self.y -= overlap / 2 * ny
+            other_marble.x += overlap / 2 * nx
+            other_marble.y += overlap / 2 * ny
+
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    clock = pygame.time.Clock()
+
+    # Create marbles
+    marble1 = Marble(100, 100, (255, 0, 0))
+    marble2 = Marble(300, 300, (0, 0, 255))
+    marbles = [marble1, marble2]
+
+    dragging_marble = None
+    offset_x = 0
+    offset_y = 0
+
+    while True:
+        screen.fill(WHITE)
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                for marble in marbles:
+                    distance = ((mouse_x - marble.x) ** 2 + (mouse_y - marble.y) ** 2) ** 0.5
+                    if distance <= marble.radius:
+                        dragging_marble = marble
+                        offset_x = marble.x - mouse_x
+                        offset_y = marble.y - mouse_y
+                        marble.dragging = True
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if dragging_marble:
+                    dragging_marble.dragging = False
+                    dragging_marble.velocity[0] = (marble.x - (mouse_x + offset_x)) / 10
+                    dragging_marble.velocity[1] = (marble.y - (mouse_y + offset_y)) / 10
+                    dragging_marble = None
+
+        # Update marble positions and handle collisions
+        for marble in marbles:
+            if marble.dragging:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                marble.x = mouse_x + offset_x
+                marble.y = mouse_y + offset_y
+
+            marble.move(marble.velocity[0], marble.velocity[1])
+            if marble.x < marble.radius or marble.x > WIDTH - marble.radius:
+                marble.velocity[0] *= -1
+            if marble.y < marble.radius or marble.y > HEIGHT - marble.radius:
+                marble.velocity[1] *= -1
+            for other_marble in marbles:
+                if marble != other_marble:
+                    marble.handle_collision(other_marble)
+            
+            # Apply damping
+            marble.velocity[0] *= DAMPING_FACTOR
+            marble.velocity[1] *= DAMPING_FACTOR
+
+        # Draw marbles
+        for marble in marbles:
+            marble.draw(screen)
+
+        pygame.display.flip()
+        clock.tick(60)
+
+if __name__ == "__main__":
+    main()
